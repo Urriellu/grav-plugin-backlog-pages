@@ -86,7 +86,7 @@
             </div>
         </details>
     {% else %}
-        <p class="backlog-empty">No epics found under <code>/backlog</code>.</p>
+        <p class="backlog-empty">No epics found under <code>{{ config.plugins['backlog-pages'].backlog_route }}</code>.</p>
     {% endfor %}
 
     <p class="backlog-empty" id="backlog-none" hidden>

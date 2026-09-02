@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    name: Lint (PHP ${{ matrix.php }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The oldest PHP the plugin claims (arrow functions need 7.4) and the
+        # version Grav 2.0 requires.
+        php: ['7.4', '8.3']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+
+      - name: Syntax-check PHP
+        run: find . -name '*.php' -not -path './vendor/*' -print0 | xargs -0 -n1 -P4 php -l
+
+  yaml:
+    name: Lint YAML
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install PyYAML
+        run: python3 -m pip install --quiet --disable-pip-version-check pyyaml
+
+      - name: Parse every YAML file
+        run: |
+          python3 - <<'PY'
+          import pathlib, sys, yaml
+          bad = 0
+          for p in sorted(pathlib.Path('.').rglob('*.y*ml')):
+              if 'vendor' in p.parts:
+                  continue
+              try:
+                  yaml.safe_load(p.read_text())
+              except Exception as e:
+                  print(f'{p}: {e}', file=sys.stderr)
+                  bad = 1
+          sys.exit(bad)
+          PY
+
+  blueprint:
+    name: Check blueprint matches release metadata
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install PyYAML
+        run: python3 -m pip install --quiet --disable-pip-version-check pyyaml
+
+      - name: Required GPM fields are present and the changelog leads with this version
+        run: |
+          python3 - <<'PY'
+          import re, sys, yaml
+          bp = yaml.safe_load(open('blueprints.yaml'))
+          missing = [k for k in
+                     ('name', 'slug', 'type', 'version', 'description', 'author', 'license')
+                     if not bp.get(k)]
+          if missing:
+              sys.exit(f'blueprints.yaml is missing GPM-required fields: {missing}')
+
+          if not bp.get('compatibility', {}).get('grav'):
+              sys.exit('blueprints.yaml is missing a compatibility.grav list')
+
+          version = str(bp['version'])
+          head = open('CHANGELOG.md').readline().strip()
+          if head != f'# {version}':
+              sys.exit(f'CHANGELOG.md starts with {head!r}, expected "# {version}"')
+
+          date = open('CHANGELOG.md').readlines()[1].strip()
+          if not re.fullmatch(r'## \d{4}-\d{2}-\d{2}', date):
+              sys.exit(f'CHANGELOG.md line 2 is {date!r}, expected "## YYYY-MM-DD"')
+
+          for f in (f"{bp['slug']}.php", f"{bp['slug']}.yaml"):
+              try:
+                  open(f).close()
+              except OSError:
+                  sys.exit(f'{f} is missing; Grav derives it from the slug')
+          print(f"blueprints.yaml OK: {bp['slug']} {version}")
+          PY

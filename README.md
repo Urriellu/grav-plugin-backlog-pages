@@ -20,20 +20,39 @@ Filtering runs in the browser over markup that is already complete, so with
 JavaScript off both pages still show everything — they simply stop filtering.
 No framework, and nothing loaded from a CDN.
 
+## Requirements
+
+- Grav 1.7 or 2.0
+- PHP 7.4 or later
+
+There is nothing to build and no dependency beyond Grav itself.
+
 ## Installing
+
+### From the Grav Package Manager
+
+```bash
+bin/gpm install backlog-pages
+```
+
+Or, in the Grav admin panel, **Plugins → Add** and search for *Backlog Pages*.
+
+### Manually
+
+Download the [latest release](https://github.com/Urriellu/grav-plugin-backlog-pages/releases)
+and unpack it into `user/plugins/`, or clone it:
 
 ```bash
 cd /path/to/grav/user/plugins
 git clone https://github.com/Urriellu/grav-plugin-backlog-pages backlog-pages
 ```
 
-The target directory must be **`backlog-pages`** — Grav takes the plugin's slug
+The target directory must be **`backlog-pages`**. Grav takes the plugin's slug
 from the directory name, and it has to match `backlog-pages.php` and
-`backlog-pages.yaml` inside. The repository is deliberately called
-something else — Grav's own convention for a plugin repository is
-`grav-plugin-<slug>`.
-
-There is nothing to build and no dependency beyond Grav 2.0.
+`backlog-pages.yaml` inside. The repository itself is called
+`grav-plugin-backlog-pages` because that is Grav's convention for a plugin
+*repository* — the two names differ on purpose, and only the directory name
+matters to Grav.
 
 ## The front-matter contract
 

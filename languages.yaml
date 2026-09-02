@@ -1,0 +1,10 @@
+en:
+  PLUGIN_BACKLOG_PAGES:
+    BACKLOG_ROUTE: 'Backlog route'
+    BACKLOG_ROUTE_HELP: 'The page whose children are the epics.'
+    ROSTER_ROUTE: 'Roster route'
+    ROSTER_ROUTE_HELP: 'The page whose front matter lists the people and what each can pick up.'
+    NAMESPACE: 'Front-matter namespace'
+    NAMESPACE_HELP: 'The front-matter key this plugin reads its fields from.'
+    HIDE_CLOSED: 'Hide Done and Cancelled by default'
+    HIDE_CLOSED_HELP: 'The hierarchy view still offers a toggle to show them.'

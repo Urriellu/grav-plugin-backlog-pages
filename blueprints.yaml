@@ -3,15 +3,26 @@ slug: backlog-pages
 type: plugin
 version: 0.1.0
 description: 'Hierarchy and priority-by-person views over epic and story pages held as ordinary Markdown pages.'
-icon: list-check
+icon: tasks
 author:
   name: Urriellu
+  url: https://github.com/Urriellu
 homepage: https://github.com/Urriellu/grav-plugin-backlog-pages
+docs: https://github.com/Urriellu/grav-plugin-backlog-pages/blob/main/README.md
 bugs: https://github.com/Urriellu/grav-plugin-backlog-pages/issues
+keywords: backlog, epics, stories, planning, roadmap, project-management, kanban
 license: MIT
 
 dependencies:
-  - { name: grav, version: '>=2.0.0' }
+  - { name: grav, version: '>=1.7.0' }
+
+# Major Grav versions this plugin has been tested against. Without this block
+# Grav 2.0 infers compatibility from the `grav` dependency above and refuses to
+# install packages it cannot place.
+compatibility:
+  grav:
+    - '1.7'
+    - '2.0'
 
 form:
   validation: strict
@@ -28,23 +39,23 @@ form:
         type: bool
     backlog_route:
       type: text
-      label: 'Backlog route'
-      help: 'The page whose children are the epics.'
+      label: PLUGIN_BACKLOG_PAGES.BACKLOG_ROUTE
+      help: PLUGIN_BACKLOG_PAGES.BACKLOG_ROUTE_HELP
       default: /backlog
     roster_route:
       type: text
-      label: 'Roster route'
-      help: 'The page whose front matter lists the people and what each can pick up.'
+      label: PLUGIN_BACKLOG_PAGES.ROSTER_ROUTE
+      help: PLUGIN_BACKLOG_PAGES.ROSTER_ROUTE_HELP
       default: /team
     namespace:
       type: text
-      label: 'Front-matter namespace'
-      help: 'The front-matter key this plugin reads its fields from.'
+      label: PLUGIN_BACKLOG_PAGES.NAMESPACE
+      help: PLUGIN_BACKLOG_PAGES.NAMESPACE_HELP
       default: backlog
     hide_closed_by_default:
       type: toggle
-      label: 'Hide Done and Cancelled by default'
-      help: 'The hierarchy view still offers a toggle to show them.'
+      label: PLUGIN_BACKLOG_PAGES.HIDE_CLOSED
+      help: PLUGIN_BACKLOG_PAGES.HIDE_CLOSED_HELP
       highlight: 1
       default: 1
       options:

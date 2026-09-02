@@ -1,0 +1,5 @@
+# Keep development-only files out of the archives GitHub generates for a
+# release -- those archives are what GPM downloads and installs.
+/.github     export-ignore
+/.gitignore  export-ignore
+/.gitattributes export-ignore
