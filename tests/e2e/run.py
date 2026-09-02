@@ -26,6 +26,8 @@ import shutil
 import socket
 import subprocess
 import sys
+import textwrap
+import traceback
 import time
 from pathlib import Path
 
@@ -34,6 +36,14 @@ FIXTURES = Path(__file__).resolve().parent / "fixtures" / "pages"
 
 # Files that belong to the repository but not to an installed plugin.
 NOT_SHIPPED = shutil.ignore_patterns(".git", ".github", "tests", "*.pyc", "__pycache__")
+
+# Every scenario rewrites configuration and pages under a server that is already
+# running, several times a second. Grav generates compiled PHP into its cache
+# directory and includes it, and opcache only re-stats an included file every
+# `revalidate_freq` seconds -- two by default. Real sites do not reconfigure
+# themselves at this rate, so nothing here should depend on that window being
+# short enough. Turning opcache off costs nothing and removes the question.
+PHP_SERVER = ["php", "-d", "opcache.enable_cli=0", "-S"]
 
 
 class Failures:
@@ -145,7 +155,7 @@ class Grav:
             self.port = s.getsockname()[1]
         self.log.write_text("")
         self.proc = subprocess.Popen(
-            ["php", "-S", f"127.0.0.1:{self.port}", "system/router.php"],
+            [*PHP_SERVER, f"127.0.0.1:{self.port}", "system/router.php"],
             cwd=self.root,
             stdout=self.log.open("a"),
             stderr=subprocess.STDOUT,
@@ -464,7 +474,7 @@ def main() -> int:
         g.configure()
         print(f"Grav {version} serving {args.grav} on 127.0.0.1:{args.port}", flush=True)
         os.chdir(args.grav)
-        os.execvp("php", ["php", "-S", f"127.0.0.1:{args.port}", "system/router.php"])
+        os.execvp("php", [*PHP_SERVER, f"127.0.0.1:{args.port}", "system/router.php"])
 
     f = Failures()
 
@@ -474,7 +484,18 @@ def main() -> int:
     try:
         for scenario in SCENARIOS:
             g.clear_cache()
-            scenario(g, f)
+            try:
+                scenario(g, f)
+            except Exception:
+                # A scenario that blows up on a missing epic is reporting the
+                # same thing as one that fails a check -- the site was not what
+                # it should have been. Recording it keeps the state report and
+                # the other scenarios, instead of losing both to a traceback.
+                f.items.append(
+                    f"[{f.scenario}] {scenario.__name__} raised\n"
+                    + textwrap.indent(traceback.format_exc().rstrip(), "     ")
+                )
+                f.checked += 1
             print(f"  ran {scenario.__name__}")
     finally:
         if not args.keep_server:
