@@ -71,6 +71,7 @@ class Grav:
         self.log = root / "e2e-server.log"
         self.proc: subprocess.Popen | None = None
         self.port = 0
+        self.last: tuple[str, int, str] = ("(none)", 0, "")
 
     # -- setup ------------------------------------------------------------
 
@@ -90,11 +91,18 @@ class Grav:
         shutil.copytree(FIXTURES, self.pages, dirs_exist_ok=True)
 
         if namespace != "backlog":
+            rewritten_files = 0
             for md in self.pages.rglob("default.md"):
                 text = md.read_text()
-                rewritten = re.sub(r"^backlog:$", f"{namespace}:", text, flags=re.M)
+                # Tolerate trailing whitespace so a stray \r cannot silently turn
+                # this into a no-op that only shows up as a missing backlog.
+                rewritten = re.sub(r"^backlog:[ \t\r]*$", f"{namespace}:", text, flags=re.M)
                 if rewritten != text:
                     md.write_text(rewritten)
+                    rewritten_files += 1
+            if not rewritten_files:
+                sys.exit("namespace rewrite changed nothing -- the fixtures are not what "
+                         "this expects, so every later check would be meaningless")
 
     def configure(self, **settings) -> None:
         self.config.parent.mkdir(parents=True, exist_ok=True)
@@ -109,8 +117,25 @@ class Grav:
         self.clear_cache()
 
     def clear_cache(self) -> None:
-        for child in (self.root / "cache").glob("*"):
-            shutil.rmtree(child, ignore_errors=True) if child.is_dir() else child.unlink()
+        """Empty Grav's cache, and be sure it is actually empty.
+
+        Every scenario changes configuration or pages under a server that is
+        already running, so a cache that quietly refused to clear would serve
+        the previous scenario's site and the failure would land somewhere else
+        entirely -- which is exactly the kind of bug that gets blamed on the
+        plugin. Swallowing errors here is how that stays hidden.
+        """
+        cache = self.root / "cache"
+        for attempt in range(3):
+            for child in cache.glob("*"):
+                if child.is_dir():
+                    shutil.rmtree(child, ignore_errors=attempt < 2)
+                else:
+                    child.unlink(missing_ok=True)
+            leftover = list(cache.glob("*"))
+            if not leftover:
+                return
+        sys.exit(f"could not empty {cache}; still holds {[p.name for p in leftover]}")
 
     # -- server -----------------------------------------------------------
 
@@ -146,9 +171,35 @@ class Grav:
         try:
             conn.request("GET", route)
             resp = conn.getresponse()
-            return resp.status, resp.read().decode("utf-8", "replace")
+            body = resp.read().decode("utf-8", "replace")
+            self.last = (route, resp.status, body)
+            return resp.status, body
         finally:
             conn.close()
+
+    def state_report(self) -> str:
+        """What the site actually looked like, for when a failure makes no sense.
+
+        Every check here runs against a site this script just assembled, so a
+        surprising result is as likely to be a broken setup as a broken plugin.
+        """
+        lines = ["", "--- state at the end of the run ---"]
+        cfg = self.config.read_text() if self.config.exists() else "(no user config)"
+        lines.append(f"user/config/plugins/backlog-pages.yaml:\n{cfg.rstrip()}")
+
+        view = self.pages / "11.plan" / "default.md"
+        head = "".join(view.read_text().splitlines(keepends=True)[:6]) if view.exists() else "(absent)"
+        lines.append(f"user/pages/11.plan/default.md:\n{head.rstrip()}")
+
+        installed = self.plugin / "backlog-pages.php"
+        lines.append(f"plugin deployed: {installed.exists()}")
+        lines.append(f"pages present: {sorted(p.name for p in self.pages.iterdir())}")
+
+        route, status, body = getattr(self, "last", ("(none)", 0, ""))
+        lines.append(f"last request: {route} -> {status}, "
+                     f"{'has' if 'backlog-toolbar' in body else 'no'} toolbar, "
+                     f"{body.count('data-story')} story rows")
+        return "\n".join(lines)
 
     def php_complaints(self) -> list[str]:
         """PHP notices/warnings the server emitted. A clean plugin emits none."""
@@ -439,6 +490,7 @@ def main() -> int:
         print(f"FAILED — {len(f.items)} of {f.checked} checks, Grav {version}\n")
         for item in f.items:
             print(f"  {item}\n")
+        print(g.state_report())
         return 1
     print(f"OK — {f.checked} checks passed against Grav {version}")
     return 0
