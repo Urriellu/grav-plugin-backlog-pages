@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import http.client
+import os
 import re
 import shutil
 import socket
@@ -386,6 +387,10 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--grav", required=True, type=Path, help="root of a Grav install")
     ap.add_argument("--keep-server", action="store_true", help="leave php -S running afterwards")
+    ap.add_argument("--serve", action="store_true",
+                    help="deploy the fixtures and serve them in the foreground, without asserting "
+                         "anything -- this is how the browser tests get a site to drive")
+    ap.add_argument("--port", type=int, default=8765, help="port for --serve")
     args = ap.parse_args()
 
     if not (args.grav / "system" / "router.php").is_file():
@@ -400,6 +405,16 @@ def main() -> int:
 
     g = Grav(args.grav)
     g.deploy_plugin()
+
+    if args.serve:
+        # The browser tests need the same site these checks build, so they get it
+        # from the same code rather than a second, drifting copy of the setup.
+        g.load_pages()
+        g.configure()
+        print(f"Grav {version} serving {args.grav} on 127.0.0.1:{args.port}", flush=True)
+        os.chdir(args.grav)
+        os.execvp("php", ["php", "-S", f"127.0.0.1:{args.port}", "system/router.php"])
+
     f = Failures()
 
     print(f"Grav {version} on PHP {subprocess.run(['php', '-r', 'echo PHP_VERSION;'], capture_output=True, text=True).stdout}")

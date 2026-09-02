@@ -180,6 +180,19 @@ obvious wrong implementations fail: folder order disagrees with rank order, two
 stories share a rank, each epic holds a child that is not a story, and the
 backlog holds a child that is not an epic.
 
+The filtering ships as plain script tags, so only a browser can say whether it
+works. Those tests drive the same fixture site:
+
+```bash
+cd tests/browser && npm install
+GRAV_ROOT=/tmp/grav20 npx playwright test
+```
+
+They cover the search, the status and label filters, the closed toggle, the
+expand and collapse buttons, the fragment that makes a filtered view linkable,
+and -- with scripting switched off -- the promise that both views still show
+everything.
+
 CI runs this against the newest release on each supported Grav line, on every
 PHP version from the floor upwards. It also refuses a `compatibility:` entry in
 `blueprints.yaml` that no matrix job actually boots, so the claim and the

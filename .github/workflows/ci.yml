@@ -155,3 +155,63 @@ jobs:
       - name: Server log on failure
         if: failure()
         run: tail -n 200 grav/e2e-server.log || true
+
+  browser:
+    # The filtering ships as plain <script> tags, so only a browser can say
+    # whether it works. One Grav line is enough here: the script is identical on
+    # both, and the markup it reads is already asserted on both by the e2e job.
+    name: Browser (Grav 2.0)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the plugin
+        uses: actions/checkout@v4
+        with:
+          path: plugin
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: gd, zip, curl, dom, mbstring, intl, openssl
+          coverage: none
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: plugin/tests/browser/package-lock.json
+
+      - name: Resolve the newest Grav 2.0 release
+        id: grav
+        run: |
+          tag=$(git ls-remote --tags --refs https://github.com/getgrav/grav.git '2.0.*' \
+                | sed 's|.*refs/tags/||' | sort -V | tail -1)
+          [ -n "$tag" ] || { echo "no tag matched 2.0.*"; exit 1; }
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Install Grav ${{ steps.grav.outputs.tag }}
+        run: |
+          git clone -q --depth 1 --branch '${{ steps.grav.outputs.tag }}' \
+            https://github.com/getgrav/grav.git grav
+          cd grav
+          composer install --no-dev --no-interaction --no-progress --quiet
+          php bin/grav install
+
+      - name: Install Playwright
+        working-directory: plugin/tests/browser
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Browser tests
+        working-directory: plugin/tests/browser
+        env:
+          GRAV_ROOT: ${{ github.workspace }}/grav
+        run: npx playwright test
+
+      - name: Traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: plugin/tests/browser/test-results/
+          retention-days: 7

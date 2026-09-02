@@ -1,0 +1,11 @@
+{
+  "name": "backlog-pages-browser-tests",
+  "private": true,
+  "description": "Browser tests for the filtering the plugin ships as plain script tags.",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0"
+  }
+}

@@ -17,7 +17,11 @@
   var stories = Array.prototype.slice.call(document.querySelectorAll('[data-story]'));
 
   function matches(el) {
-    if (!closed.checked && el.getAttribute('data-closed') === '1') { return false; }
+    // Choosing a status is an explicit request to see exactly that status, so it
+    // overrides the show-closed toggle. Otherwise picking "Done" while the
+    // toggle is off returns nothing at all, which reads as a broken filter
+    // rather than a strict one.
+    if (!closed.checked && !status.value && el.getAttribute('data-closed') === '1') { return false; }
     if (status.value && el.getAttribute('data-status') !== status.value) { return false; }
     if (label.value && el.getAttribute('data-labels').indexOf('|' + label.value + '|') === -1) { return false; }
     var needle = (q.value || '').trim().toLowerCase();

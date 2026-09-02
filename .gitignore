@@ -1,2 +1,13 @@
 vendor/
 .DS_Store
+
+# Claude Code assets provided by the private UPA repo via a SessionStart hook.
+# Symlinks into ~/UPA/.claude/shared/ — never commit them.
+.claude/skills
+.claude/commands
+.claude/worktrees/
+
+# Playwright, in tests/browser
+node_modules/
+test-results/
+playwright-report/
