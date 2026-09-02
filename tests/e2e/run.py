@@ -82,10 +82,13 @@ class Grav:
         self.proc: subprocess.Popen | None = None
         self.port = 0
         self.last: tuple[str, int, str] = ("(none)", 0, "")
+        # Set by anything that changes the site, cleared by the restart in get().
+        self.stale = False
 
     # -- setup ------------------------------------------------------------
 
     def deploy_plugin(self) -> None:
+        self.log.write_text("")
         shutil.rmtree(self.plugin, ignore_errors=True)
         shutil.copytree(REPO, self.plugin, ignore=NOT_SHIPPED)
 
@@ -99,6 +102,7 @@ class Grav:
         for page in ("10.backlog", "11.plan", "12.who", "13.team", "14.bogus"):
             shutil.rmtree(self.pages / page, ignore_errors=True)
         shutil.copytree(FIXTURES, self.pages, dirs_exist_ok=True)
+        self.stale = True
 
         if namespace != "backlog":
             rewritten_files = 0
@@ -124,7 +128,7 @@ class Grav:
                 for k, v in settings.items()
             )
             self.config.write_text(body)
-        self.clear_cache()
+        self.stale = True
 
     def clear_cache(self) -> None:
         """Empty Grav's cache, and be sure it is actually empty.
@@ -153,7 +157,6 @@ class Grav:
         with socket.socket() as s:
             s.bind(("127.0.0.1", 0))
             self.port = s.getsockname()[1]
-        self.log.write_text("")
         self.proc = subprocess.Popen(
             [*PHP_SERVER, f"127.0.0.1:{self.port}", "system/router.php"],
             cwd=self.root,
@@ -165,7 +168,7 @@ class Grav:
             if self.proc.poll() is not None:
                 sys.exit(f"php -S died on startup:\n{self.log.read_text()}")
             try:
-                self.get("/")
+                self._fetch("/")
                 return
             except (OSError, http.client.HTTPException):
                 time.sleep(0.2)
@@ -177,6 +180,28 @@ class Grav:
             self.proc.wait(timeout=10)
 
     def get(self, route: str) -> tuple[int, str]:
+        """Fetch a route, restarting the server first if the site has changed.
+
+        `php -S` handles every request from one long-lived process, and PHP keeps
+        state across requests that no amount of clearing Grav's cache directory
+        touches -- the realpath cache remembers for two minutes that a page
+        directory did not exist, and opcache re-stats included files on its own
+        schedule. Changing pages or configuration under that process and hoping
+        the next request notices is how this suite spent three CI runs reporting
+        a 404 on a page that was plainly there. So a changed site gets a new
+        process and an empty cache, and nothing has to be hoped for.
+        """
+        if self.stale:
+            # Cleared first: start() probes the server through _fetch(), and a
+            # flag still set here would send it straight back into this branch.
+            self.stale = False
+            self.stop()
+            self.clear_cache()
+            self.start()
+
+        return self._fetch(route)
+
+    def _fetch(self, route: str) -> tuple[int, str]:
         conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=30)
         try:
             conn.request("GET", route)
@@ -483,7 +508,6 @@ def main() -> int:
     print(f"serving {args.grav} on 127.0.0.1:{g.port}\n")
     try:
         for scenario in SCENARIOS:
-            g.clear_cache()
             try:
                 scenario(g, f)
             except Exception:
