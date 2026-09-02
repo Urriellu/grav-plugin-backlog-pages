@@ -1,0 +1,20 @@
+enabled: true
+
+# Where the epics live. Every direct child of this page whose front matter says
+# `doc_type: epic` is an epic; every child of those saying `doc_type: story` is
+# a story.
+backlog_route: /backlog
+
+# The page whose front matter carries the roster of people, under
+# `<namespace>.people`. Each entry needs an `id`, a `name` and a `can_pick`
+# list of labels.
+roster_route: /team
+
+# The front-matter key this plugin reads its fields from. Change it if the site
+# already has its own conventions -- with `namespace: backlog`, a story carries
+# `backlog: { key: ..., rank: ..., status: ... }`.
+namespace: backlog
+
+# Hide Done and Cancelled in the hierarchy view until asked for. The toggle is
+# always present either way.
+hide_closed_by_default: true

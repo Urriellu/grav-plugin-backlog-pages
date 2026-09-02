@@ -1,0 +1,44 @@
+<script>
+/* Priority by person. Every open story is already in the page in company-wide
+   rank order; choosing somebody hides the ones carrying no label they can pick
+   up. Capability, not assignment. */
+(function () {
+  "use strict";
+  var select = document.getElementById('backlog-person');
+  if (!select) { return; }
+
+  var rows = Array.prototype.slice.call(document.querySelectorAll('[data-story]'));
+  var counts = document.getElementById('backlog-person-counts');
+  var note = document.getElementById('backlog-person-note');
+  var empty = document.getElementById('backlog-person-empty');
+
+  function apply() {
+    var option = select.options[select.selectedIndex];
+    var can = (option.getAttribute('data-can') || '||').split('|').filter(Boolean);
+    var shown = 0;
+
+    rows.forEach(function (row) {
+      var labels = row.getAttribute('data-labels');
+      var ok = can.some(function (label) { return labels.indexOf('|' + label + '|') !== -1; });
+      row.hidden = !ok;
+      if (ok) { shown++; }
+    });
+
+    counts.textContent = shown + ' of ' + rows.length + ' open stories';
+    note.textContent = option.text + ' can pick up: ' + (can.length ? can.join(', ') : 'nothing');
+    empty.hidden = shown !== 0;
+    history.replaceState(null, '', '#person=' + encodeURIComponent(select.value));
+  }
+
+  var hash = (location.hash || '').replace(/^#person=/, '');
+  if (hash) {
+    var wanted = decodeURIComponent(hash);
+    for (var i = 0; i < select.options.length; i++) {
+      if (select.options[i].value === wanted) { select.selectedIndex = i; break; }
+    }
+  }
+
+  select.addEventListener('change', apply);
+  apply();
+})();
+</script>

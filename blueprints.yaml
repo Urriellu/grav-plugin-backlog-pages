@@ -1,0 +1,54 @@
+name: Backlog Pages
+slug: backlog-pages
+type: plugin
+version: 0.1.0
+description: 'Hierarchy and priority-by-person views over epic and story pages held as ordinary Markdown pages.'
+icon: list-check
+author:
+  name: Urriellu
+homepage: https://github.com/Urriellu/grav-plugin-backlog-pages
+bugs: https://github.com/Urriellu/grav-plugin-backlog-pages/issues
+license: MIT
+
+dependencies:
+  - { name: grav, version: '>=2.0.0' }
+
+form:
+  validation: strict
+  fields:
+    enabled:
+      type: toggle
+      label: PLUGIN_ADMIN.PLUGIN_STATUS
+      highlight: 1
+      default: 1
+      options:
+        1: PLUGIN_ADMIN.ENABLED
+        0: PLUGIN_ADMIN.DISABLED
+      validate:
+        type: bool
+    backlog_route:
+      type: text
+      label: 'Backlog route'
+      help: 'The page whose children are the epics.'
+      default: /backlog
+    roster_route:
+      type: text
+      label: 'Roster route'
+      help: 'The page whose front matter lists the people and what each can pick up.'
+      default: /team
+    namespace:
+      type: text
+      label: 'Front-matter namespace'
+      help: 'The front-matter key this plugin reads its fields from.'
+      default: backlog
+    hide_closed_by_default:
+      type: toggle
+      label: 'Hide Done and Cancelled by default'
+      help: 'The hierarchy view still offers a toggle to show them.'
+      highlight: 1
+      default: 1
+      options:
+        1: PLUGIN_ADMIN.ENABLED
+        0: PLUGIN_ADMIN.DISABLED
+      validate:
+        type: bool

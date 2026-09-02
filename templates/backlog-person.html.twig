@@ -1,0 +1,70 @@
+{% extends 'partials/base.html.twig' %}
+
+{#
+    Priority by person.
+
+    Choose anybody -- not only yourself -- and see what they could pick up
+    next: open stories only, in company-wide rank order, filtered to the labels
+    that person is able to work on.
+
+    Capability, not assignment: the question is "what could this person do
+    next", not "what has been handed to them".
+#}
+
+{% block content %}
+<article class="content-item">
+    {{ page.content|raw }}
+
+    {% if backlog_people is empty %}
+        <p class="backlog-empty">
+            No roster found. People are read from the front matter of
+            <a href="{{ backlog_roster_route }}">the roster page</a>, under
+            <code>{{ backlog_namespace }}.people</code>.
+        </p>
+    {% else %}
+        <form class="backlog-toolbar" id="backlog-person-form">
+            <label>Person
+                <select name="person" id="backlog-person">
+                    {% for person in backlog_people %}
+                        <option value="{{ person.id }}"
+                                data-can="|{{ person.can_pick|join('|') }}|">{{ person.name }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <span class="spacer"></span>
+            <span class="backlog-counts" id="backlog-person-counts"></span>
+        </form>
+
+        <p class="backlog-note" id="backlog-person-note"></p>
+
+        <ol class="backlog-priority">
+            {% for story in backlog_stories %}
+                {% if not story.closed %}
+                    <li class="backlog-row s-{{ story.status }}"
+                        data-story
+                        data-labels="|{{ story.labels|join('|') }}|">
+                        <span class="backlog-rank">{{ story.rank }}</span>
+                        <span class="backlog-key">{{ story.key }}</span>
+                        <a class="backlog-title" href="{{ story.route }}">{{ story.title }}</a>
+                        <span class="backlog-meta">
+                            <span class="backlog-status">{{ story.status_label }}</span>
+                            <a class="backlog-tag epic" href="{{ story.epic_route }}">{{ story.epic_key }}</a>
+                            {% for label in story.labels %}<span class="backlog-tag">{{ label }}</span>{% endfor %}
+                        </span>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+
+        <p class="backlog-empty" id="backlog-person-empty" hidden>
+            Nothing open carries a label this person can pick up.
+        </p>
+    {% endif %}
+</article>
+{% endblock %}
+
+{% block bottom %}
+    {{ parent() }}
+    {% include 'partials/backlog-styles.html.twig' %}
+    {% include 'partials/backlog-person.html.twig' %}
+{% endblock %}

@@ -1,0 +1,102 @@
+{% extends 'partials/base.html.twig' %}
+
+{#
+    The hierarchy view: every epic with its stories, collapsible, filterable.
+    This is the primary planning view -- the board is a by-product.
+
+    Everything here is already sorted and counted by the plugin, so the only
+    logic in this file is markup. Filtering is a small script over data-
+    attributes on markup that is already complete, so with JavaScript off the
+    page still shows the whole backlog and simply stops filtering.
+#}
+
+{% set hide_closed = config.plugins['backlog-pages'].hide_closed_by_default %}
+
+{% block content %}
+<article class="content-item">
+    {{ page.content|raw }}
+
+    <form class="backlog-toolbar" id="backlog-filters">
+        <label>Search
+            <input type="search" name="q" placeholder="key, title, anything">
+        </label>
+        <label>Status
+            <select name="status">
+                <option value="">Any</option>
+                {% for value, label in backlog_statuses %}
+                    <option value="{{ value }}">{{ label }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>Label
+            <select name="label">
+                <option value="">Any</option>
+                {% for label in backlog_labels %}
+                    <option value="{{ label }}">{{ label }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <span class="spacer"></span>
+        <label class="inline">
+            <input type="checkbox" name="closed" {% if not hide_closed %}checked{% endif %}>
+            Show done and cancelled
+        </label>
+        <button type="button" data-all="open">Expand all</button>
+        <button type="button" data-all="close">Collapse all</button>
+        <button type="button" id="backlog-reset">Clear</button>
+    </form>
+
+    <p class="backlog-counts" id="backlog-counts"></p>
+
+    {% for epic in backlog_epics %}
+        <details class="backlog-epic" data-epic open>
+            <summary>
+                <span class="backlog-epic-head">
+                    <span class="backlog-key">{{ epic.key }}</span>
+                    <a href="{{ epic.route }}">{{ epic.title }}</a>
+                </span>
+                <span class="backlog-progress">
+                    <span class="backlog-bar"><i style="width:{{ epic.percent }}%"></i></span>
+                    <span class="backlog-count"><b>0</b> shown &middot; {{ epic.closed }} of {{ epic.total }} closed</span>
+                </span>
+            </summary>
+
+            <div class="backlog-stories">
+                {% for story in epic.stories %}
+                    <div class="backlog-story s-{{ story.status }}"
+                         data-story
+                         data-status="{{ story.status }}"
+                         data-closed="{{ story.closed ? '1' : '0' }}"
+                         data-labels="|{{ story.labels|join('|') }}|"
+                         data-text="{{ (story.key ~ ' ' ~ story.title ~ ' ' ~ story.summary ~ ' ' ~ story.labels|join(' '))|lower }}">
+                        <span class="backlog-key">{{ story.key }}</span>
+                        <a class="backlog-title" href="{{ story.route }}">{{ story.title }}</a>
+                        <span class="backlog-meta">
+                            <span class="backlog-status">{{ story.status_label }}</span>
+                            {% for label in story.labels %}<span class="backlog-tag">{{ label }}</span>{% endfor %}
+                            {% if story.owner %}<span class="backlog-tag">{{ story.owner }}</span>{% endif %}
+                            {% for dep in story.depends_on %}<span class="backlog-tag dep">after {{ dep }}</span>{% endfor %}
+                            {% for trace in story.traces_to %}<span class="backlog-tag trace">{{ trace }}</span>{% endfor %}
+                        </span>
+                    </div>
+                {% else %}
+                    <p class="backlog-empty">No stories in this epic yet.</p>
+                {% endfor %}
+                <p class="backlog-empty" data-none hidden>Nothing matches the filters.</p>
+            </div>
+        </details>
+    {% else %}
+        <p class="backlog-empty">No epics found under <code>/backlog</code>.</p>
+    {% endfor %}
+
+    <p class="backlog-empty" id="backlog-none" hidden>
+        Nothing matches these filters. <button type="button" id="backlog-none-reset">Clear them</button>
+    </p>
+</article>
+{% endblock %}
+
+{% block bottom %}
+    {{ parent() }}
+    {% include 'partials/backlog-styles.html.twig' %}
+    {% include 'partials/backlog-filter.html.twig' %}
+{% endblock %}

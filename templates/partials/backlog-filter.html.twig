@@ -1,0 +1,119 @@
+<script>
+/* Hierarchy view filtering. Runs over markup that is already complete, so with
+   JavaScript off the page still shows every epic and story -- it just stops
+   filtering. State lives in the URL fragment so a filtered view can be sent to
+   somebody. */
+(function () {
+  "use strict";
+  var form = document.getElementById('backlog-filters');
+  if (!form) { return; }
+
+  var q = form.querySelector('[name=q]');
+  var status = form.querySelector('[name=status]');
+  var label = form.querySelector('[name=label]');
+  var closed = form.querySelector('[name=closed]');
+  var counts = document.getElementById('backlog-counts');
+  var epics = Array.prototype.slice.call(document.querySelectorAll('[data-epic]'));
+  var stories = Array.prototype.slice.call(document.querySelectorAll('[data-story]'));
+
+  function matches(el) {
+    if (!closed.checked && el.getAttribute('data-closed') === '1') { return false; }
+    if (status.value && el.getAttribute('data-status') !== status.value) { return false; }
+    if (label.value && el.getAttribute('data-labels').indexOf('|' + label.value + '|') === -1) { return false; }
+    var needle = (q.value || '').trim().toLowerCase();
+    if (needle && el.getAttribute('data-text').indexOf(needle) === -1) { return false; }
+    return true;
+  }
+
+  function apply() {
+    var shown = 0;
+    stories.forEach(function (el) {
+      var ok = matches(el);
+      el.hidden = !ok;
+      if (ok) { shown++; }
+    });
+
+    epics.forEach(function (epic) {
+      var visible = epic.querySelectorAll('[data-story]:not([hidden])').length;
+      var badge = epic.querySelector('.backlog-count b');
+      if (badge) { badge.textContent = visible; }
+      var none = epic.querySelector('[data-none]');
+      if (none) { none.hidden = visible !== 0; }
+      // An epic with nothing left to show is noise, not information.
+      epic.hidden = visible === 0 && (status.value || label.value || q.value);
+    });
+
+    counts.textContent = shown === stories.length
+      ? stories.length + ' stories'
+      : shown + ' of ' + stories.length + ' stories';
+
+    // Every epic hidden and no explanation is indistinguishable from a broken
+    // page, which is exactly when somebody stops trusting the view.
+    var none = document.getElementById('backlog-none');
+    if (none) { none.hidden = shown !== 0; }
+
+    save();
+  }
+
+  function save() {
+    var parts = [];
+    if (q.value) { parts.push('q=' + encodeURIComponent(q.value)); }
+    if (status.value) { parts.push('status=' + encodeURIComponent(status.value)); }
+    if (label.value) { parts.push('label=' + encodeURIComponent(label.value)); }
+    if (closed.checked) { parts.push('closed=1'); }
+    history.replaceState(null, '', parts.length ? '#' + parts.join('&') : location.pathname);
+  }
+
+  function restore() {
+    var hash = (location.hash || '').replace(/^#/, '');
+    if (!hash) { return; }
+    hash.split('&').forEach(function (pair) {
+      var i = pair.indexOf('=');
+      if (i < 0) { return; }
+      var key = pair.slice(0, i);
+      var val = decodeURIComponent(pair.slice(i + 1).replace(/\+/g, ' '));
+      if (key === 'q') { q.value = val; }
+      if (key === 'status') { status.value = val; }
+      if (key === 'label') { label.value = val; }
+      if (key === 'closed') { closed.checked = val === '1'; }
+    });
+  }
+
+  form.addEventListener('input', function (ev) {
+    if (ev.target.hasAttribute('data-all')) { return; }
+    apply();
+  });
+  form.addEventListener('change', apply);
+  form.addEventListener('submit', function (ev) { ev.preventDefault(); });
+
+  form.addEventListener('click', function (ev) {
+    var all = ev.target.closest('[data-all]');
+    if (all) {
+      var open = all.getAttribute('data-all') === 'open';
+      epics.forEach(function (epic) { epic.open = open; });
+      return;
+    }
+    if (ev.target.closest('#backlog-reset')) {
+      q.value = '';
+      status.value = '';
+      label.value = '';
+      closed.checked = false;
+      apply();
+    }
+  });
+
+  var noneReset = document.getElementById('backlog-none-reset');
+  if (noneReset) {
+    noneReset.addEventListener('click', function () {
+      q.value = '';
+      status.value = '';
+      label.value = '';
+      closed.checked = false;
+      apply();
+    });
+  }
+
+  restore();
+  apply();
+})();
+</script>

@@ -1,0 +1,47 @@
+<style>
+.backlog-toolbar { display: flex; flex-wrap: wrap; gap: .6rem; align-items: flex-end;
+    padding: .75rem; border: 1px solid rgba(128,128,128,.3); border-radius: 6px;
+    margin: 1.5rem 0 1rem; }
+.backlog-toolbar label { display: flex; flex-direction: column; gap: .2rem; margin: 0;
+    font-size: 11px; text-transform: uppercase; letter-spacing: .06em; opacity: .75; }
+.backlog-toolbar label.inline { flex-direction: row; align-items: center; gap: .35rem;
+    text-transform: none; letter-spacing: 0; font-size: .85rem; }
+.backlog-toolbar select, .backlog-toolbar input[type=search] { font: inherit; font-size: .9rem;
+    padding: .25rem .4rem; }
+.backlog-toolbar .spacer { flex: 1 1 auto; }
+.backlog-toolbar button { font: inherit; font-size: .8rem; padding: .3rem .6rem; cursor: pointer; }
+.backlog-counts { font-size: .85rem; opacity: .7; margin: 0 0 1rem; }
+.backlog-note { font-size: .85rem; opacity: .7; margin: 0 0 1rem; }
+
+.backlog-epic { border: 1px solid rgba(128,128,128,.3); border-radius: 6px;
+    margin-bottom: .75rem; }
+.backlog-epic > summary { cursor: pointer; padding: .7rem .9rem; display: flex;
+    flex-wrap: wrap; gap: .5rem 1rem; align-items: center; justify-content: space-between; }
+.backlog-epic-head { font-weight: 600; }
+.backlog-progress { display: flex; align-items: center; gap: .6rem; font-size: .8rem; opacity: .8; }
+.backlog-bar { display: inline-block; width: 8rem; height: 5px; border-radius: 3px;
+    background: rgba(128,128,128,.3); overflow: hidden; }
+.backlog-bar > i { display: block; height: 100%; background: #2c7a4b; }
+.backlog-stories { padding: 0 .9rem .9rem 1.6rem; }
+
+.backlog-story, .backlog-row { display: flex; flex-wrap: wrap; gap: .4rem .7rem;
+    align-items: baseline; padding: .4rem 0 .4rem .6rem;
+    border-left: 3px solid rgba(128,128,128,.45);
+    border-bottom: 1px solid rgba(128,128,128,.15); }
+.backlog-row { margin-left: .4rem; }
+.s-in-progress { border-left-color: #2f5bd7; }
+.s-done { border-left-color: #2c7a4b; }
+.s-cancelled { border-left-color: #b4441f; }
+.backlog-key, .backlog-rank { font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+    opacity: .6; }
+.backlog-rank { min-width: 2.5rem; }
+.backlog-title { flex: 1 1 18rem; }
+.backlog-meta { display: flex; flex-wrap: wrap; gap: .3rem; }
+.backlog-status { font-size: 11px; opacity: .7; }
+.backlog-tag { font-size: 11px; padding: .05rem .4rem; border: 1px solid rgba(128,128,128,.4);
+    border-radius: 999px; opacity: .8; }
+.backlog-tag.dep { border-style: dashed; }
+.backlog-empty { font-size: .85rem; opacity: .6; }
+.backlog-priority { list-style: none; padding: 0; margin: 0; }
+.s-done .backlog-title, .s-cancelled .backlog-title { opacity: .6; }
+</style>
