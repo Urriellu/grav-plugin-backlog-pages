@@ -3,7 +3,7 @@
 //
 // The roster is Alex (software, hardware), Sam (research) and Nobody (nothing).
 // Four stories are open: S-201 research, S-103 hardware+software, S-100 and
-// S-101 software.
+// S-101 software. S-100 waits on S-201, so it is blocked.
 
 const { test, expect } = require('@playwright/test');
 
@@ -23,7 +23,7 @@ test('opens on the first person with their work already filtered', async ({ page
   await expect(page.locator('#backlog-person')).toHaveValue('alex');
   // Global rank order: S-103 is 30, S-100 and S-101 both 40, tied and broken by key.
   expect(await visibleKeys(page)).toEqual(['S-103', 'S-100', 'S-101']);
-  await expect(page.locator('#backlog-person-counts')).toHaveText(`3 of ${OPEN} open stories`);
+  await expect(page.locator('#backlog-person-counts')).toHaveText(`3 of ${OPEN} open stories · 1 blocked`);
   await expect(page.locator('#backlog-person-note'))
     .toHaveText('Alex can pick up: software, hardware');
 });

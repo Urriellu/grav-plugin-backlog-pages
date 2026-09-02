@@ -41,6 +41,14 @@
 .backlog-tag { font-size: 11px; padding: .05rem .4rem; border: 1px solid rgba(128,128,128,.4);
     border-radius: 999px; opacity: .8; }
 .backlog-tag.dep { border-style: dashed; }
+.backlog-tag.dep.blocking { border-color: rgba(180,68,31,.75); opacity: 1; }
+
+/* Blocked is not a status -- a story can be blocked in any of them -- so it
+   reads on a second axis: the left edge goes dashed and the status colour it
+   already carries stays put. */
+.backlog-story.is-blocked, .backlog-row.is-blocked { border-left-style: dashed; }
+.is-blocked .backlog-title { opacity: .75; }
+.backlog-blocked { font-size: .9em; line-height: 1; cursor: help; }
 .backlog-empty { font-size: .85rem; opacity: .6; }
 .backlog-priority { list-style: none; padding: 0; margin: 0; }
 .s-done .backlog-title, .s-cancelled .backlog-title { opacity: .6; }
