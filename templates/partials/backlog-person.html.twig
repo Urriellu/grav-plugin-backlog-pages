@@ -11,34 +11,56 @@
   var counts = document.getElementById('backlog-person-counts');
   var note = document.getElementById('backlog-person-note');
   var empty = document.getElementById('backlog-person-empty');
+  var unblocked = document.getElementById('backlog-person-unblocked');
+  var emptyDefault = empty.textContent.trim();
 
   function apply() {
     var option = select.options[select.selectedIndex];
     var can = (option.getAttribute('data-can') || '||').split('|').filter(Boolean);
     var shown = 0;
+    var blocked = 0;
 
     rows.forEach(function (row) {
       var labels = row.getAttribute('data-labels');
-      var ok = can.some(function (label) { return labels.indexOf('|' + label + '|') !== -1; });
+      var capable = can.some(function (label) { return labels.indexOf('|' + label + '|') !== -1; });
+      var waiting = row.getAttribute('data-blocked') === '1';
+      if (capable && waiting) { blocked++; }
+      var ok = capable && !(unblocked.checked && waiting);
       row.hidden = !ok;
       if (ok) { shown++; }
     });
 
-    counts.textContent = shown + ' of ' + rows.length + ' open stories';
+    // Blocked ones are counted even when they are hidden: the point of the
+    // number is that they exist and are waiting on something.
+    counts.textContent = shown + ' of ' + rows.length + ' open stories'
+      + (blocked ? ' \u00b7 ' + blocked + ' blocked' : '');
     note.textContent = option.text + ' can pick up: ' + (can.length ? can.join(', ') : 'nothing');
+    // An empty list because everything is blocked is a different situation
+    // from an empty list because nothing carries the right label, and it is
+    // the one with something to do about it.
+    empty.textContent = blocked && !shown
+      ? 'Everything ' + option.text + ' could pick up is blocked, waiting on stories that are still open.'
+      : emptyDefault;
     empty.hidden = shown !== 0;
-    history.replaceState(null, '', '#person=' + encodeURIComponent(select.value));
+    history.replaceState(null, '', '#person=' + encodeURIComponent(select.value)
+      + (unblocked.checked ? '&unblocked=1' : ''));
   }
 
-  var hash = (location.hash || '').replace(/^#person=/, '');
-  if (hash) {
-    var wanted = decodeURIComponent(hash);
-    for (var i = 0; i < select.options.length; i++) {
-      if (select.options[i].value === wanted) { select.selectedIndex = i; break; }
+  (location.hash || '').replace(/^#/, '').split('&').forEach(function (pair) {
+    var i = pair.indexOf('=');
+    if (i < 0) { return; }
+    var key = pair.slice(0, i);
+    var val = decodeURIComponent(pair.slice(i + 1).replace(/\+/g, ' '));
+    if (key === 'person') {
+      for (var j = 0; j < select.options.length; j++) {
+        if (select.options[j].value === val) { select.selectedIndex = j; break; }
+      }
     }
-  }
+    if (key === 'unblocked') { unblocked.checked = val === '1'; }
+  });
 
   select.addEventListener('change', apply);
+  unblocked.addEventListener('change', apply);
   apply();
 })();
 </script>

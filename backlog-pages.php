@@ -174,9 +174,53 @@ class BacklogPagesPlugin extends Plugin
             $epics[] = $epic;
         }
 
+        $this->markBlocked($epics);
         $this->sortByRank($epics);
 
         return $epics;
+    }
+
+    /**
+     * Mark every story that is waiting on another one.
+     *
+     * Blocked is derived from `depends_on` rather than declared, so nothing
+     * has to be marked twice and nothing can go stale: a story stops being
+     * blocked the moment the story it waits on is closed, without anybody
+     * remembering to come back and say so.
+     *
+     * A dependency key that matches no story counts as blocking. It cannot be
+     * shown to be finished, and calling something ready when it is not is the
+     * more expensive mistake -- somebody picks it up and stalls.
+     *
+     * @param list<array<string,mixed>> $epics
+     */
+    private function markBlocked(array &$epics): void
+    {
+        $closed = [];
+        foreach ($epics as $epic) {
+            foreach ($epic['stories'] as $story) {
+                if ($story['key'] !== '') {
+                    $closed[$story['key']] = $story['closed'];
+                }
+            }
+        }
+
+        foreach ($epics as &$epic) {
+            foreach ($epic['stories'] as &$story) {
+                // A closed story is finished, not waiting.
+                if ($story['closed']) {
+                    continue;
+                }
+                $blockers = array_values(array_filter(
+                    $story['depends_on'],
+                    static fn (string $dep): bool => ($closed[$dep] ?? false) !== true
+                ));
+                $story['blocked_by'] = $blockers;
+                $story['blocked'] = $blockers !== [];
+            }
+            unset($story);
+        }
+        unset($epic);
     }
 
     /**
@@ -200,6 +244,10 @@ class BacklogPagesPlugin extends Plugin
             'owner' => (string) ($this->headerValue($page, 'owner') ?? ''),
             'labels' => $this->stringList($this->headerValue($page, 'labels')),
             'depends_on' => $this->stringList($this->headerValue($page, 'depends_on')),
+            // Filled in by markBlocked(), which needs every story before it
+            // can say whether any one of them is waiting on another.
+            'blocked' => false,
+            'blocked_by' => [],
             'traces_to' => $this->stringList($this->headerValue($page, 'traces_to')),
             'updated' => (string) ($this->headerValue($page, 'updated') ?? ''),
         ];

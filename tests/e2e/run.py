@@ -291,6 +291,7 @@ def story_attrs(html: str) -> dict[str, dict]:
         out[key] = {
             "status": attr(chunk, "data-status"),
             "closed": attr(chunk, "data-closed"),
+            "blocked": attr(chunk, "data-blocked"),
             "labels": attr(chunk, "data-labels"),
             "chunk": chunk,
         }
@@ -347,6 +348,8 @@ def scenario_default(g: Grav, f: Failures) -> None:
     f.check("done counts as closed", rows["S-102"]["closed"], "1")
     f.check("cancelled counts as closed", rows["S-202"]["closed"], "1")
     f.check_in("depends_on renders", "after S-102", rows["S-103"]["chunk"])
+    f.check("waiting on an open story blocks", rows["S-100"]["blocked"], "1")
+    f.check("waiting on a closed story does not", rows["S-103"]["blocked"], "0")
     f.check_in("traces_to renders", "ADR-0001", rows["S-103"]["chunk"])
     f.check_in("owner renders", "alex", rows["S-103"]["chunk"])
 
@@ -460,12 +463,93 @@ def scenario_hide_closed(g: Grav, f: Failures) -> None:
     f.check("showing closed by default ticks the box", "checked" in box, True)
 
 
+def add_depends(g: Grav, key: str, deps: list[str]) -> None:
+    """Give one installed fixture story a depends_on list.
+
+    Written into the pages Grav is serving rather than into the fixtures on
+    disk, so that the shared backlog every other check counts on -- and the
+    browser tests with it -- stays exactly as it was.
+    """
+    wanted = re.compile(rf"^([ \t]*)key: {re.escape(key)}[ \t\r]*$", re.M)
+    for md in sorted(g.pages.rglob("default.md")):
+        text = md.read_text()
+        m = wanted.search(text)
+        if not m:
+            continue
+        rewritten = wanted.sub(
+            lambda hit: f"{hit.group(0)}\n{m.group(1)}depends_on: [{', '.join(deps)}]", text
+        )
+        # A rewrite that silently changed nothing would leave the story
+        # unblocked and every assertion below reading as a real failure.
+        if rewritten == text:
+            sys.exit(f"adding depends_on to {key} changed nothing -- the fixture moved")
+        md.write_text(rewritten)
+        return
+    sys.exit(f"no fixture story carries key {key}")
+
+
+def scenario_blocked(g: Grav, f: Failures) -> None:
+    """A story waits on what it depends on, until that closes."""
+    f.scenario = "blocked"
+    g.load_pages()
+    g.configure()
+
+    # The fixtures already have S-100 waiting on S-201 -- open, and in the other
+    # epic, because dependencies cross epic boundaries the way ranks do -- and
+    # S-103 waiting on S-102, which is done, so S-103 has to come back
+    # unblocked. That last one is the whole point of deriving this rather than
+    # asking anybody to declare it. Only the unknown key needs adding here.
+    add_depends(g, "S-101", ["NOPE-1"])
+    g.clear_cache()
+
+    _, plan = g.get("/plan")
+    rows = story_attrs(plan)
+    f.check("waiting on an open story blocks", rows["S-100"]["blocked"], "1")
+    f.check("waiting on a key no story carries blocks", rows["S-101"]["blocked"], "1")
+    f.check("waiting on a done story does not block", rows["S-103"]["blocked"], "0")
+    f.check("depending on nothing does not block", rows["S-201"]["blocked"], "0")
+    f.check("a done story is finished, not waiting", rows["S-102"]["blocked"], "0")
+    f.check("a cancelled story is finished, not waiting", rows["S-202"]["blocked"], "0")
+
+    f.check_in("the blocked row is marked", "backlog-blocked", rows["S-100"]["chunk"])
+    f.check_in("the marker names its blocker", 'title="Blocked by S-201"', rows["S-100"]["chunk"])
+    f.check_in("the marker is labelled for a screen reader too",
+               'aria-label="Blocked by S-201"', rows["S-100"]["chunk"])
+    f.check_in("the blocked row is styled as blocked", "is-blocked", rows["S-100"]["chunk"])
+    f.check_not_in("an unblocked row carries no marker", "backlog-blocked", rows["S-103"]["chunk"])
+    f.check_not_in("an unblocked row is not styled as blocked", "is-blocked", rows["S-103"]["chunk"])
+
+    # The dependency that is still holding a story up reads differently from
+    # one that has been satisfied, even though both stay on the row.
+    f.check_in("the blocking dependency is marked as such", "dep blocking", rows["S-100"]["chunk"])
+    f.check_in("a satisfied dependency still renders", "after S-102", rows["S-103"]["chunk"])
+    f.check_not_in("a satisfied dependency is not marked as blocking",
+                   "dep blocking", rows["S-103"]["chunk"])
+
+    # Searching for "blocked" has to find them, so the word goes in the row's
+    # data-text the way the summary does.
+    f.check_in("blocked is searchable", "blocked", attr(rows["S-100"]["chunk"], "data-text"))
+
+    f.check_in("the hierarchy offers a ready-only filter",
+               'name="unblocked"', plan)
+
+    _, who = g.get("/who")
+    # The person view answers what somebody could pick up next, so a story
+    # nobody can start yet has to say so there above all.
+    blocked_rows = re.findall(r'<li class="backlog-row[^"]*"\s+data-story\s+data-blocked="([^"]*)"', who)
+    f.check("every person-view row states whether it is blocked",
+            len(blocked_rows), len(person_rows(who)))
+    f.check("the person view marks the blocked ones", sorted(blocked_rows), ["0", "0", "1", "1"])
+    f.check_in("the person view offers a ready-only filter", 'id="backlog-person-unblocked"', who)
+
+
 SCENARIOS = [
     scenario_default,
     scenario_disabled,
     scenario_namespace,
     scenario_missing_routes,
     scenario_hide_closed,
+    scenario_blocked,
 ]
 
 

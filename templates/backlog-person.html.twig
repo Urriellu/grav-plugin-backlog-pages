@@ -31,6 +31,10 @@
                     {% endfor %}
                 </select>
             </label>
+            <label class="inline">
+                <input type="checkbox" name="unblocked" id="backlog-person-unblocked">
+                Ready only
+            </label>
             <span class="spacer"></span>
             <span class="backlog-counts" id="backlog-person-counts"></span>
         </form>
@@ -40,16 +44,21 @@
         <ol class="backlog-priority">
             {% for story in backlog_stories %}
                 {% if not story.closed %}
-                    <li class="backlog-row s-{{ story.status }}"
+                    <li class="backlog-row s-{{ story.status }}{% if story.blocked %} is-blocked{% endif %}"
                         data-story
+                        data-blocked="{{ story.blocked ? '1' : '0' }}"
                         data-labels="|{{ story.labels|join('|') }}|">
                         <span class="backlog-rank">{{ story.rank }}</span>
                         <span class="backlog-key">{{ story.key }}</span>
+                        {% if story.blocked %}
+                            {% include 'partials/backlog-blocked.html.twig' with { blocked_by: story.blocked_by } only %}
+                        {% endif %}
                         <a class="backlog-title" href="{{ story.route }}">{{ story.title }}</a>
                         <span class="backlog-meta">
                             <span class="backlog-status">{{ story.status_label }}</span>
                             <a class="backlog-tag epic" href="{{ story.epic_route }}">{{ story.epic_key }}</a>
                             {% for label in story.labels %}<span class="backlog-tag">{{ label }}</span>{% endfor %}
+                            {% for dep in story.blocked_by %}<span class="backlog-tag dep blocking">after {{ dep }}</span>{% endfor %}
                         </span>
                     </li>
                 {% endif %}

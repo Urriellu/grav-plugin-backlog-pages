@@ -5,7 +5,8 @@
 // below is behaviour no amount of reading the HTML can confirm.
 //
 // The fixture backlog is six stories: four open, one done (S-102) and one
-// cancelled (S-202). See tests/e2e/fixtures/pages.
+// cancelled (S-202). S-100 waits on S-201, which is open, so one of the four is
+// blocked. See tests/e2e/fixtures/pages.
 
 const { test, expect } = require('@playwright/test');
 
@@ -26,7 +27,7 @@ test.beforeEach(async ({ page }) => {
 
 test('closed stories are hidden until asked for', async ({ page }) => {
   await expect(shownStories(page)).toHaveCount(OPEN);
-  await expect(page.locator('#backlog-counts')).toHaveText(`${OPEN} of ${ALL} stories`);
+  await expect(page.locator('#backlog-counts')).toHaveText(`${OPEN} of ${ALL} stories · 1 blocked`);
   expect(await visibleKeys(page)).not.toContain('S-102');
   expect(await visibleKeys(page)).not.toContain('S-202');
 
@@ -34,7 +35,7 @@ test('closed stories are hidden until asked for', async ({ page }) => {
   await expect(shownStories(page)).toHaveCount(ALL);
   // Once nothing is filtered the count stops saying "of", because a count that
   // always reads "6 of 6" trains people to ignore it.
-  await expect(page.locator('#backlog-counts')).toHaveText(`${ALL} stories`);
+  await expect(page.locator('#backlog-counts')).toHaveText(`${ALL} stories · 1 blocked`);
 });
 
 test('each epic reports how many of its stories are showing', async ({ page }) => {

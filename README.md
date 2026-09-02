@@ -16,6 +16,9 @@ Two views:
   pick up, in rank order, filtered to the labels they are able to work on.
   Capability, not assignment: the question is *what could this person do next*.
 
+Both mark the stories that are blocked, so *could pick up* means could actually
+start, not merely holds the right label.
+
 Filtering runs in the browser over markup that is already complete, so with
 JavaScript off both pages still show everything — they simply stop filtering.
 No framework, and nothing loaded from a CDN.
@@ -82,7 +85,7 @@ backlog:
     status: to-do
     owner: alex
     labels: [research, hardware]
-    depends_on: [S-001]
+    depends_on: [S-001]    # blocked until S-001 closes -- see below
     traces_to: [ADR-0006]  # optional, free-form; shown as a tag
 ---
 ```
@@ -123,6 +126,28 @@ backlog:
 
 `can_pick` is a list of labels. A story appears for somebody when it carries at
 least one label they can pick up.
+
+## Blocked stories
+
+A story is **blocked** when something in its `depends_on` list is not closed
+yet. Both lists mark it with ⛔ and name the blockers in the tooltip, the left
+edge goes dashed, and either view can be narrowed to **Ready only** — what
+somebody could actually start right now.
+
+```yaml
+depends_on: [S-001]     # ⛔ until S-001 is Done or Cancelled
+```
+
+Nothing is marked blocked by hand. Being blocked is *derived* from the
+dependency that causes it, so it cannot go stale: close S-001 and everything
+waiting on it is ready on the next page load, with nobody having to remember
+to go back and unmark anything.
+
+A key that matches no story on the site counts as blocking, since it cannot be
+shown to be finished. That covers waiting on something outside the backlog, and
+it makes a typo show up as an unexplained ⛔ rather than quietly reading as
+ready — the cheaper of the two failures, because the other one has somebody
+pick the story up and stall.
 
 ## Ranks are global
 

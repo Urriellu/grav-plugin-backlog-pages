@@ -1,0 +1,10 @@
+{#
+    The blocked marker, spelled out once so that both lists say the same thing
+    the same way.
+
+    The emoji alone says "stop" but not "until what", so the blockers go in the
+    title. aria-label repeats them rather than leaving a screen reader to
+    announce "no entry", which is the symbol and not the point.
+#}
+{%- set reason = blocked_by is not empty ? 'Blocked by ' ~ blocked_by|join(', ') : 'Blocked' -%}
+<span class="backlog-blocked" role="img" aria-label="{{ reason }}" title="{{ reason }}">⛔</span>

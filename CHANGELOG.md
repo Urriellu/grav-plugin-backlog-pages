@@ -1,3 +1,13 @@
+# 0.3.0
+## 2026-09-02
+
+1. [](#new)
+    * Blocked stories are marked with an emoji in both views, with the blockers named in the tooltip and a dashed left edge. Blocked is derived from `depends_on` rather than declared -- a story is blocked while anything it depends on is still open -- so nothing is marked by hand and nothing can go stale once the blocker closes
+    * A **Ready only** toggle in both views, and a count of the blocked stories each is showing. The person view says outright when everything somebody could pick up is blocked, which is a different situation from nothing carrying their labels
+2. [](#improved)
+    * A `depends_on` key matching no story on the site counts as blocking. It cannot be shown to be finished, so this covers blockers outside the backlog and stops a typo reading as ready
+    * The end-to-end checks assert the blocked markup on both supported Grav lines, and the browser tests drive the filtering that reads it
+
 # 0.2.0
 ## 2026-09-02
 
