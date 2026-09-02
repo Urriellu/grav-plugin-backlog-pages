@@ -161,6 +161,30 @@ Its styles are scoped to `.backlog-*` classes and use `rgba(128,128,128,…)`
 borders rather than fixed colours, so they sit acceptably on a light or dark
 theme without being told which.
 
+Both views are exercised in CI against Quark on Grav 1.7 and Quark2 on Grav
+2.0, which are different themes running different major versions of Twig.
+
+## Developing
+
+The tests boot a real Grav, install the plugin into it, serve it and read the
+HTML back. Nothing about the ordering, the counting or the empty states can be
+checked any other way.
+
+```bash
+tests/e2e/install-grav.sh 2.0 /tmp/grav20     # or 1.7
+python3 tests/e2e/run.py --grav /tmp/grav20
+```
+
+The fixture backlog under `tests/e2e/fixtures/pages` is built so that the
+obvious wrong implementations fail: folder order disagrees with rank order, two
+stories share a rank, each epic holds a child that is not a story, and the
+backlog holds a child that is not an epic.
+
+CI runs this against the newest release on each supported Grav line, on every
+PHP version from the floor upwards. It also refuses a `compatibility:` entry in
+`blueprints.yaml` that no matrix job actually boots, so the claim and the
+evidence cannot drift apart.
+
 ## Status
 
 **Early.** Written for one site and generalised afterwards. The front-matter

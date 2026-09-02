@@ -4,38 +4,43 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Grav's own releases can break us without anything changing here, and a
+  # plugin that quietly stopped working on the current Grav is worse than one
+  # that never claimed to. Monday morning is soon enough to hear about it.
+  schedule:
+    - cron: '0 6 * * 1'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   lint:
-    name: Lint (PHP ${{ matrix.php }})
+    name: Syntax (PHP ${{ matrix.php }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        # The oldest PHP the plugin claims (arrow functions need 7.4) and the
-        # version Grav 2.0 requires.
-        php: ['7.4', '8.3']
+        # 7.4 is the floor the arrow functions impose and the README claims.
+        # The end-to-end job below runs on versions people actually deploy;
+        # this one only proves the syntax floor is where we say it is.
+        php: ['7.4', '8.4']
     steps:
       - uses: actions/checkout@v4
-
       - uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
           coverage: none
+      - run: find . -name '*.php' -not -path './vendor/*' -print0 | xargs -0 -n1 -P4 php -l
 
-      - name: Syntax-check PHP
-        run: find . -name '*.php' -not -path './vendor/*' -print0 | xargs -0 -n1 -P4 php -l
-
-  yaml:
-    name: Lint YAML
+  metadata:
+    name: Package metadata
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - run: python3 -m pip install --quiet --disable-pip-version-check pyyaml
 
-      - name: Install PyYAML
-        run: python3 -m pip install --quiet --disable-pip-version-check pyyaml
-
-      - name: Parse every YAML file
+      - name: Every YAML file parses
         run: |
           python3 - <<'PY'
           import pathlib, sys, yaml
@@ -51,16 +56,7 @@ jobs:
           sys.exit(bad)
           PY
 
-  blueprint:
-    name: Check blueprint matches release metadata
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install PyYAML
-        run: python3 -m pip install --quiet --disable-pip-version-check pyyaml
-
-      - name: Required GPM fields are present and the changelog leads with this version
+      - name: Blueprint is releasable and agrees with the changelog
         run: |
           python3 - <<'PY'
           import re, sys, yaml
@@ -71,22 +67,91 @@ jobs:
           if missing:
               sys.exit(f'blueprints.yaml is missing GPM-required fields: {missing}')
 
-          if not bp.get('compatibility', {}).get('grav'):
-              sys.exit('blueprints.yaml is missing a compatibility.grav list')
+          compat = bp.get('compatibility', {}).get('grav')
+          if not compat:
+              sys.exit('blueprints.yaml is missing a compatibility.grav list; without it '
+                       'Grav 2.0 infers a single version from the grav dependency')
+
+          # Every Grav line we claim compatibility with has to be a line the
+          # end-to-end job actually boots, or the claim is decoration.
+          workflow = open('.github/workflows/ci.yml').read()
+          for line in compat:
+              if f"grav: '{line}'" not in workflow:
+                  sys.exit(f'blueprints.yaml claims Grav {line} but no e2e matrix entry tests it')
 
           version = str(bp['version'])
-          head = open('CHANGELOG.md').readline().strip()
-          if head != f'# {version}':
-              sys.exit(f'CHANGELOG.md starts with {head!r}, expected "# {version}"')
-
-          date = open('CHANGELOG.md').readlines()[1].strip()
-          if not re.fullmatch(r'## \d{4}-\d{2}-\d{2}', date):
-              sys.exit(f'CHANGELOG.md line 2 is {date!r}, expected "## YYYY-MM-DD"')
+          lines = open('CHANGELOG.md').readlines()
+          if lines[0].strip() != f'# {version}':
+              sys.exit(f'CHANGELOG.md starts with {lines[0].strip()!r}, expected "# {version}"')
+          if not re.fullmatch(r'## \d{4}-\d{2}-\d{2}', lines[1].strip()):
+              sys.exit(f'CHANGELOG.md line 2 is {lines[1].strip()!r}, expected "## YYYY-MM-DD"')
 
           for f in (f"{bp['slug']}.php", f"{bp['slug']}.yaml"):
               try:
                   open(f).close()
               except OSError:
-                  sys.exit(f'{f} is missing; Grav derives it from the slug')
-          print(f"blueprints.yaml OK: {bp['slug']} {version}")
+                  sys.exit(f'{f} is missing; Grav derives its name from the slug')
+          print(f"OK: {bp['slug']} {version}, compatible with Grav {compat}")
           PY
+
+  e2e:
+    name: Grav ${{ matrix.grav }} / PHP ${{ matrix.php }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Grav 1.7 runs Twig 1.44 and ships Quark; Grav 2.0 runs Twig 3 and
+          # ships Quark2. Both lines are claimed in blueprints.yaml, so both
+          # lines get booted.
+          # 7.4 is the floor the arrow functions impose; Grav 1.7 itself goes
+          # lower, but this is the oldest PHP the plugin can run on.
+          - { grav: '1.7', php: '7.4' }
+          - { grav: '1.7', php: '8.1' }
+          - { grav: '1.7', php: '8.3' }
+          - { grav: '2.0', php: '8.3' }
+          - { grav: '2.0', php: '8.4' }
+    steps:
+      - name: Check out the plugin
+        uses: actions/checkout@v4
+        with:
+          path: plugin
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: gd, zip, curl, dom, mbstring, intl, openssl
+          coverage: none
+
+      - name: Resolve the newest Grav ${{ matrix.grav }} release
+        id: grav
+        run: |
+          tag=$(git ls-remote --tags --refs https://github.com/getgrav/grav.git \
+                  '${{ matrix.grav }}.*' \
+                | sed 's|.*refs/tags/||' | sort -V | tail -1)
+          [ -n "$tag" ] || { echo "no tag matched ${{ matrix.grav }}.*"; exit 1; }
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Newest Grav ${{ matrix.grav }} release is $tag"
+
+      - name: Cache Composer downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/composer
+          key: composer-${{ matrix.php }}-${{ steps.grav.outputs.tag }}
+
+      - name: Install Grav ${{ steps.grav.outputs.tag }}
+        run: |
+          git clone -q --depth 1 --branch '${{ steps.grav.outputs.tag }}' \
+            https://github.com/getgrav/grav.git grav
+          cd grav
+          composer install --no-dev --no-interaction --no-progress --quiet
+          # Pulls in the default theme (Quark on 1.7, Quark2 on 2.0) plus the
+          # error and problems plugins, straight from GitHub.
+          php bin/grav install
+
+      - name: End-to-end
+        run: python3 plugin/tests/e2e/run.py --grav grav
+
+      - name: Server log on failure
+        if: failure()
+        run: tail -n 200 grav/e2e-server.log || true
