@@ -10,6 +10,11 @@ on:
   schedule:
     - cron: '0 6 * * 1'
 
+# Nothing here needs to write to the repository; the reporting job below asks
+# for the little more that it needs.
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -215,3 +220,104 @@ jobs:
           name: playwright-traces
           path: plugin/tests/browser/test-results/
           retention-days: 7
+
+  report:
+    # Everything above lands in the Checks tab as eleven separate entries, which
+    # is eleven things to read before you know whether a pull request is safe to
+    # merge. This job reduces them to one: a single pass/fail check to require in
+    # branch protection, and a comment on the pull request itself listing what
+    # ran and what each job concluded.
+    name: CI
+    needs: [lint, metadata, e2e, browser]
+    # Without always() this job would be skipped exactly when it is most needed,
+    # which is when one of the jobs it reports on has failed.
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read          # to read the sibling jobs' results
+      pull-requests: write   # to leave the results comment
+    steps:
+      - name: Collect the results of every job in this run
+        id: report
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          # needs.* collapses a whole matrix into one verdict, so ask the API
+          # instead: it reports each leg of the e2e matrix separately, with a
+          # link straight to that leg's log.
+          gh api --paginate "repos/$REPO/actions/runs/$RUN_ID/jobs" \
+            --jq '.jobs[] | {name, conclusion, html_url}' > jobs.jsonl
+
+          python3 - <<'PY'
+          import json, os
+
+          MARKER = '<!-- backlog-pages-ci-results -->'
+          ICON = {'success': ':white_check_mark:', 'failure': ':x:',
+                  'cancelled': ':heavy_minus_sign:', 'skipped': ':fast_forward:',
+                  'timed_out': ':hourglass:'}
+
+          with open('jobs.jsonl') as fh:
+              jobs = [json.loads(line) for line in fh if line.strip()]
+          # This job is still running, so it has no verdict to report about
+          # itself. Its name is the `name:` above.
+          jobs = [j for j in jobs if j['name'] != 'CI']
+
+          failed = [j for j in jobs if j['conclusion'] != 'success']
+          passed = len(jobs) - len(failed)
+          heading = ':x: CI failed' if failed else ':white_check_mark: CI passed'
+
+          out = [MARKER, '', f'### {heading} &mdash; {passed}/{len(jobs)} jobs green',
+                 '', '| | Job | Result |', '|:--|:--|:--|']
+          for j in jobs:
+              result = j['conclusion'] or 'running'
+              out.append(f"| {ICON.get(j['conclusion'], ':grey_question:')} "
+                         f"| [{j['name']}]({j['html_url']}) | {result} |")
+          out += ['', f"[Full run logs]({os.environ['RUN_URL']}) "
+                      f"for commit `{os.environ['SHA'][:7]}`."]
+          report = '\n'.join(out) + '\n'
+
+          with open('report.md', 'w') as fh:
+              fh.write(report)
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as fh:
+              fh.write(report)
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
+              fh.write(f'failed={len(failed)}\n')
+          PY
+
+      - name: Show the results on the pull request
+        if: github.event_name == 'pull_request'
+        # A pull request from a fork gets a read-only token, so the comment is a
+        # nicety that cannot be allowed to turn a green run red. The check itself
+        # still reports, and the step summary still has the table.
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.number }}
+        run: |
+          marker='<!-- backlog-pages-ci-results -->'
+          # Update the comment we left last time rather than stacking a new one
+          # on every push, so the conversation stays readable.
+          existing=$(gh api --paginate "repos/$REPO/issues/$PR/comments" \
+                       --jq ".[] | select(.body | startswith(\"$marker\")) | .id" \
+                     | tail -1)
+          jq -Rs '{body: .}' report.md > payload.json
+          if [ -n "$existing" ]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$existing" --input payload.json --silent
+            echo "Updated the existing results comment ($existing)."
+          else
+            gh api -X POST "repos/$REPO/issues/$PR/comments" --input payload.json --silent
+            echo "Posted a results comment."
+          fi
+
+      - name: Fail if any job did not pass
+        env:
+          FAILED: ${{ steps.report.outputs.failed }}
+        run: |
+          [ "$FAILED" = "0" ] \
+            || { echo "::error::$FAILED job(s) did not pass; see the table above."; exit 1; }
